@@ -1,5 +1,8 @@
 # zabbix-tools
 
-A tool for interacting with Zabbix API built in Rust.
+A CLI tool for interacting with Zabbix API built in Rust.
 
-There exists only a test API call that will return a JSON object if successful.  A function to mass import hosts from csv is planned.
+API test call implemented.  Add host function has been included, but my instance of Zabbix is rejecting it with an invalid parameter error (-32500).
+
+To-do:
+Convert static JSON text to struct - both work with serde_json but struct will look cleaner and be less error prone.
