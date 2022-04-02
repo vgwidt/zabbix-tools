@@ -1,8 +1,13 @@
 use serde_json::json;
+use serde::Deserialize;
 use ::std::*;
 use std::io::Write;
+use std::fs::File;
+use std::env;
+use std::path::PathBuf;
+use std::option::Option;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
  struct Connection {
         server: String,
         username: String,
@@ -11,9 +16,22 @@ use std::io::Write;
 
 fn main(){
 
+    //let mut file = File::open("config.json").unwrap();
     let mut zbxsrv = String::new();
     let mut user = String::new();
     let mut pass = String::new();
+
+    //try to load config file
+    //let mut path:PathBuf = PathBuf::new();
+    //let homedir = std::env::home_dir();
+    //path.push(homedir);
+    //path.push("/.config/config.json");
+    //path.push("/.config/zabbix-tools/config.json");
+    //println!("{:?}", path);
+    //let file = File::open("config.json").unwrap();
+    //let conncfg: Connection = serde_json::from_str(file).expect("JSON was not well-formatted");
+    //check if contents are OK, otherwise prompt
+
 
         println!("Enter Zabbix Host IP/Name (Include virtual directory if it exists, e.g. 127.0.0.1/zabbix):");
         io::stdin().read_line(&mut zbxsrv).expect("Failed to read line");
@@ -28,12 +46,14 @@ fn main(){
         io::stdin().read_line(&mut pass).expect("Failed to read line");
         let pass: String = pass.trim().parse().expect("Invalid string!");
 
-        let conn_string = Connection {
-            server: zbxsrv,
-            username: user,
-            password: pass
-        };
 
+    
+    
+    let conn_string = Connection {
+        server: zbxsrv,
+        username: user,
+        password: pass
+    };
         let cloned_string = conn_string.clone();
 
         api_test(conn_string).map_err(|err| println!("{:?}", err)).ok();
