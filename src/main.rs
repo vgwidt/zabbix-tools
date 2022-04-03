@@ -172,10 +172,14 @@ async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
             "name": hostname.trim(),
             "interfaces": [
                 {
-                    "type": "SNMP",
+                    "type": 2,
                     "ip": ipaddress.trim(),
+                    "dns": "",
+                    "useip": 1,
+                    "main": 1,
                     "port": "161",
                     "details": {
+                        "version": 2,
                         "community": "{$SNMP_COMMUNITY}",
                     },
                 "interface_ref": "if1"
@@ -191,7 +195,7 @@ async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
                     "templateid": "10607"
                 }
             ],
-            "inventory_mode": "DISABLED"
+            "inventory_mode": 0
         },
         "auth": authtoken.trim(),
         "id": 1
