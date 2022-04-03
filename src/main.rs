@@ -1,6 +1,7 @@
 use serde_json::json;
 use serde::Deserialize;
 use ::std::*;
+use std::io::Read;
 use std::io::Write;
 use std::fs::File;
 use std::env;
@@ -11,7 +12,8 @@ use std::option::Option;
  struct Connection {
         server: String,
         username: String,
-        password: String
+        password: String,
+        token: String
  }
 
 fn main(){
@@ -20,46 +22,21 @@ fn main(){
     let mut zbxsrv = String::new();
     let mut user = String::new();
     let mut pass = String::new();
+    let mut authtoken = String::new();
 
-    //try to load config file
-    //let mut path:PathBuf = PathBuf::new();
-    //let homedir = std::env::home_dir();
-    //path.push(homedir);
-    //path.push("/.config/config.json");
-    //path.push("/.config/zabbix-tools/config.json");
-    //println!("{:?}", path);
-    //let file = File::open("config.json").unwrap();
-    //let conncfg: Connection = serde_json::from_str(file).expect("JSON was not well-formatted");
+    //Try to load config
+    let mut file = File::open("config.json").unwrap();
+    let mut buff = String::new();
+    file.read_to_string(&mut buff).unwrap();
+ 
+    let mut conn_string: Connection = serde_json::from_str(&buff).unwrap();
     //check if contents are OK, otherwise prompt
 
-
-        println!("Enter Zabbix Host IP/Name (Include virtual directory if it exists, e.g. 127.0.0.1/zabbix):");
-        io::stdin().read_line(&mut zbxsrv).expect("Failed to read line");
-        let zbxsrv: String = zbxsrv.trim().parse().expect("Invalid string!");
-        let zbxsrv = format!("http://{}/api_jsonrpc.php", zbxsrv);
-
-        println!("Enter Username:");
-        io::stdin().read_line(&mut user).expect("Failed to read line");
-        let user: String = user.trim().parse().expect("Invalid string!");
-
-        println!("Enter Password:");
-        io::stdin().read_line(&mut pass).expect("Failed to read line");
-        let pass: String = pass.trim().parse().expect("Invalid string!");
-
-
-    
-    
-    let conn_string = Connection {
-        server: zbxsrv,
-        username: user,
-        password: pass
-    };
-        let cloned_string = conn_string.clone();
-
+    let cloned_string = conn_string.clone();
         api_test(conn_string).map_err(|err| println!("{:?}", err)).ok();
 
 loop {
-    let mut choice: String = String::new();
+     let mut choice: String = String::new();
         let conn_string = cloned_string.clone();
         println!("Select option:");
         println!("1: Add Hosts");
@@ -86,6 +63,33 @@ loop {
     }
     println!("Goodbye");
 }
+
+/*fn ask_for_server(){
+    println!("Enter Zabbix Host IP/Name (Include virtual directory if it exists, e.g. 127.0.0.1/zabbix):");
+    io::stdin().read_line(&mut zbxsrv).expect("Failed to read line");
+    let zbxsrv: String = zbxsrv.trim().parse().expect("Invalid string!");
+  let zbxsrv = format!("http://{}/api_jsonrpc.php", zbxsrv);
+
+
+    println!("Enter Username:");
+    io::stdin().read_line(&mut user).expect("Failed to read line");
+    let user: String = user.trim().parse().expect("Invalid string!");
+
+    println!("Enter Password:");
+    io::stdin().read_line(&mut pass).expect("Failed to read line");
+    let pass: String = pass.trim().parse().expect("Invalid string!");
+
+    println!("Enter Auth Token:");
+    io::stdin().read_line(&mut authtoken).expect("Failed to read line");
+    let authtoken: String = authtoken.trim().parse().expect("Invalid string!");
+
+let conn_string = Connection {
+    server: zbxsrv,
+    username: user,
+    password: pass,
+    token: authtoken
+};
+}*/
 
 #[tokio::main]
 async fn api_test(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
@@ -127,7 +131,7 @@ async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
     let mut ipaddress: String = String::new();
     let mut hostname: String = String::new();
     let mut groupid: String = String::new();
-    let mut authtoken: String = String::new();
+    //let mut authtoken: String = String::new(); //removed as it is included in initial connecting string now
     println!("(Add Hosts) Select option:");
     println!("1: Add Manually");
     println!("2: Add from CSV");
@@ -148,9 +152,9 @@ async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
         io::stdin().read_line(&mut groupid).expect("Failed to read line");
         let groupid: String = groupid.trim().parse().expect("Invalid string!");
 
-        println!("Enter Auth Token ID:");
-        io::stdin().read_line(&mut authtoken).expect("Failed to read line");
-        let authtoken: String = authtoken.trim().parse().expect("Invalid string!");
+        //println!("Enter Auth Token ID:");
+        //io::stdin().read_line(&mut authtoken).expect("Failed to read line");
+        //let authtoken: String = authtoken.trim().parse().expect("Invalid string!");
 
     }
     else if choice == 2 { 
@@ -197,7 +201,7 @@ async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
             ],
             "inventory_mode": 0
         },
-        "auth": authtoken.trim(),
+        "auth": conn.token,
         "id": 1
     });
 
