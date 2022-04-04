@@ -4,7 +4,14 @@ A CLI tool for interacting with Zabbix API built in Rust.  Designed for Zabbix 6
 
 Functions added to test API and add hosts manually or via .csv file.
 
-# Instructions
+## Instructions
+
+Build using cargo from project root directory:
+```
+cargo build
+```
+
+Executable will be located in /target/debug/. 
 
 Copy the config.json file from /cfg/ into the the folder from which you run the executable.  Modify with your server connection details.  API token is not required for testing API.
 
@@ -13,7 +20,7 @@ For .csv import, copy the hosts.csv template from /cfg/ into your root folder an
 Note:
 Syntax and requirements for Zabbix API seem to change with each version so this may not work for versions other than 6.0  See the Zabbix manual for details: https://www.zabbix.com/documentation/6.0/en/manual/api.
 
-# To-do
+## To-do
 
 Convert static JSON value text to struct - both work with serde_json but struct will look cleaner and be less error prone.
 
