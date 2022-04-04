@@ -2,11 +2,7 @@ use serde_json::json;
 use serde::Deserialize;
 use ::std::*;
 use std::io::Read;
-use std::io::Write;
 use std::fs::File;
-use std::env;
-use std::path::PathBuf;
-use std::option::Option;
 extern crate csv;
 use csv::Reader;
 
@@ -22,16 +18,12 @@ use csv::Reader;
  struct Host {
     ip: String,
     hostname: String,
-    groupid: String
+    gid: String,
+    tid: String,
+    snmp: String
 }
 
 fn main(){
-
-    //let mut file = File::open("config.json").unwrap();
-    let mut zbxsrv = String::new();
-    let mut user = String::new();
-    let mut pass = String::new();
-    let mut authtoken = String::new();
 
     //Try to load config
     let mut file = File::open("config.json").unwrap();
@@ -39,7 +31,7 @@ fn main(){
     file.read_to_string(&mut buff).unwrap();
  
     let mut conn_string: Connection = serde_json::from_str(&buff).unwrap();
-    //check if contents are OK, otherwise prompt
+    //check if contents are OK, otherwise prompt (get_server)
 
     let cloned_string = conn_string.clone();
         api_test(conn_string).map_err(|err| println!("{:?}", err)).ok();
@@ -73,11 +65,17 @@ loop {
     println!("Goodbye");
 }
 
-/*fn ask_for_server(){
+fn get_server() -> Connection {
+
+    let mut zbxsrv = String::new();
+    let mut user = String::new();
+    let mut pass = String::new();
+    let mut authtoken = String::new();
+
     println!("Enter Zabbix Host IP/Name (Include virtual directory if it exists, e.g. 127.0.0.1/zabbix):");
     io::stdin().read_line(&mut zbxsrv).expect("Failed to read line");
     let zbxsrv: String = zbxsrv.trim().parse().expect("Invalid string!");
-  let zbxsrv = format!("http://{}/api_jsonrpc.php", zbxsrv);
+    let zbxsrv = format!("http://{}/api_jsonrpc.php", zbxsrv);
 
 
     println!("Enter Username:");
@@ -98,7 +96,9 @@ let conn_string = Connection {
     password: pass,
     token: authtoken
 };
-}*/
+
+return conn_string;
+}
 
 fn api_test(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
 
@@ -140,6 +140,8 @@ fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
     let mut ipaddress: String = String::new();
     let mut hostname: String = String::new();
     let mut groupid: String = String::new();
+    let mut templateid: String = String::new();
+    let mut snmpstring: String = String::new();
 
     println!("(Add Hosts) Select option:");
     println!("1: Add Manually");
@@ -160,6 +162,45 @@ fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
         println!("Enter Group ID:");
         io::stdin().read_line(&mut groupid).expect("Failed to read line");
         let groupid: String = groupid.trim().parse().expect("Invalid string!");
+
+        let request: serde_json::Value = json!({
+            "jsonrpc": "2.0",
+            "method": "host.create",
+            "params": {
+                "host": hostname.trim(),
+                "name": hostname.trim(),
+                "interfaces": [
+                    {
+                        "type": 2,
+                        "ip": ipaddress.trim(),
+                        "dns": "",
+                        "useip": 1,
+                        "main": 1,
+                        "port": "161",
+                        "details": {
+                            "version": 2,
+                            "community": "{$SNMP_COMMUNITY}",
+                        },
+                    "interface_ref": "if1"
+                    }
+                ],
+                "groups": [
+                    {
+                        "groupid": groupid.trim()
+                    }
+                ],
+                "templates": [
+                    {
+                        "templateid": "10607"
+                    }
+                ],
+                "inventory_mode": 0
+            },
+            "auth": conn.token,
+            "id": 1
+        });
+    
+       send_request(conn, request);
 
     }
     else if choice == 2 { 
@@ -187,44 +228,7 @@ fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
         println!("Please select a valid option");
     }
     
-    let request: serde_json::Value = json!({
-        "jsonrpc": "2.0",
-        "method": "host.create",
-        "params": {
-            "host": hostname.trim(),
-            "name": hostname.trim(),
-            "interfaces": [
-                {
-                    "type": 2,
-                    "ip": ipaddress.trim(),
-                    "dns": "",
-                    "useip": 1,
-                    "main": 1,
-                    "port": "161",
-                    "details": {
-                        "version": 2,
-                        "community": "{$SNMP_COMMUNITY}",
-                    },
-                "interface_ref": "if1"
-                }
-            ],
-            "groups": [
-                {
-                    "groupid": groupid.trim()
-                }
-            ],
-            "templates": [
-                {
-                    "templateid": "10607"
-                }
-            ],
-            "inventory_mode": 0
-        },
-        "auth": conn.token,
-        "id": 1
-    });
 
-   send_request(conn, request);
     
     //If you receive JSON result back, connection appears to be successful.  Error should be passed otherwise on connection failure.
   Ok(())
