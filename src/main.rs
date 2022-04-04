@@ -14,7 +14,7 @@ use csv::Reader;
         token: String
  }
 
- #[derive(Debug, Deserialize)]
+ #[derive(Debug, Deserialize, Clone)]
  struct Host {
     ip: String,
     hostname: String,
@@ -34,7 +34,7 @@ fn main(){
     //check if contents are OK, otherwise prompt (get_server)
 
     let cloned_string = conn_string.clone();
-        api_test(conn_string).map_err(|err| println!("{:?}", err)).ok();
+        api_test(&conn_string).map_err(|err| println!("{:?}", err)).ok();
 
 loop {
      let mut choice: String = String::new();
@@ -47,11 +47,11 @@ loop {
         let choice: i32 = choice.trim().parse().expect("Please type a number!");
         
         if choice == 1 {
-            add_hosts(conn_string).map_err(|err| println!("{:?}", err)).ok();
+            add_hosts(&conn_string).map_err(|err| println!("{:?}", err)).ok();
             continue;
         }
         else if choice == 2 { 
-            api_test(conn_string).map_err(|err| println!("{:?}", err)).ok();
+            api_test(&conn_string).map_err(|err| println!("{:?}", err)).ok();
             continue;
         }
         else if choice == 3 {
@@ -100,7 +100,7 @@ let conn_string = Connection {
 return conn_string;
 }
 
-fn api_test(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
+fn api_test(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
 
     //JSON Request Object
     let request = json!({
@@ -114,13 +114,13 @@ fn api_test(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
         "auth": null
     });
 
-    send_request(conn, request);
+    send_request(&conn, request);
 
     Ok(())
 }
 
 #[tokio::main]
-async fn send_request(conn: Connection, req: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
+async fn send_request(conn: &Connection, req: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
     
     println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&req).unwrap());
     let client = reqwest::Client::new();
@@ -134,7 +134,7 @@ async fn send_request(conn: Connection, req: serde_json::Value) -> Result<(), Bo
     Ok(())
 }
 
-fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
+fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut choice: String = String::new();
     let mut ipaddress: String = String::new();
@@ -218,8 +218,48 @@ fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
             //Build struct, then send to JSON in this loop?
             let host: Host = record.deserialize(None)?;
             println!("{}", host.ip);
+
+            let request: serde_json::Value = json!({
+                "jsonrpc": "2.0",
+                "method": "host.create",
+                "params": {
+                    "host": host.ip.trim(),
+                    "name": host.hostname.trim(),
+                    "interfaces": [
+                        {
+                            "type": 2,
+                            "ip": host.ip.trim(),
+                            "dns": "",
+                            "useip": 1,
+                            "main": 1,
+                            "port": "161",
+                            "details": {
+                                "version": 2,
+                                "community": host.snmp.trim(),
+                            },
+                        "interface_ref": "if1"
+                        }
+                    ],
+                    "groups": [
+                        {
+                            "groupid": host.gid.trim()
+                        }
+                    ],
+                    "templates": [
+                        {
+                            "templateid": host.tid.trim()
+                        }
+                    ],
+                    "inventory_mode": 0
+                },
+                "auth": conn.token,
+                "id": 1
+            });
+
+            println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&request).unwrap());
+            send_request(&conn, request);
         }
-        println!("{:?}", rows);
+
     }
     else if choice == 3 {
         return Ok(());
@@ -227,9 +267,7 @@ fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
     else {
         println!("Please select a valid option");
     }
-    
-
-    
+        
     //If you receive JSON result back, connection appears to be successful.  Error should be passed otherwise on connection failure.
   Ok(())
 }

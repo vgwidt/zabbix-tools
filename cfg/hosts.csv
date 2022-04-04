@@ -1,0 +1,3 @@
+Hostname,Display Name,GroupID,TemplateID,SNMP Community
+192.168.0.1,TestDevice1,28,10607,{$SNMP_COMMUNITY}
+192.168.0.2,TestDevice2,28,10607,{$SNMP_COMMUNITY}
