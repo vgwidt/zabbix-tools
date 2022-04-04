@@ -7,6 +7,8 @@ use std::fs::File;
 use std::env;
 use std::path::PathBuf;
 use std::option::Option;
+extern crate csv;
+use csv::Reader;
 
 #[derive(Debug, Clone, Deserialize)]
  struct Connection {
@@ -15,6 +17,13 @@ use std::option::Option;
         password: String,
         token: String
  }
+
+ #[derive(Debug, Deserialize)]
+ struct Host {
+    ip: String,
+    hostname: String,
+    groupid: String
+}
 
 fn main(){
 
@@ -106,9 +115,6 @@ async fn api_test(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
         "auth": null
     });
 
-    //println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&request).unwrap());
-    //println!("Your URL is {}", conn.server);
-
     let client = reqwest::Client::new();
 
     let response = client.post(&conn.server)
@@ -131,7 +137,7 @@ async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
     let mut ipaddress: String = String::new();
     let mut hostname: String = String::new();
     let mut groupid: String = String::new();
-    //let mut authtoken: String = String::new(); //removed as it is included in initial connecting string now
+
     println!("(Add Hosts) Select option:");
     println!("1: Add Manually");
     println!("2: Add from CSV");
@@ -152,14 +158,24 @@ async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
         io::stdin().read_line(&mut groupid).expect("Failed to read line");
         let groupid: String = groupid.trim().parse().expect("Invalid string!");
 
-        //println!("Enter Auth Token ID:");
-        //io::stdin().read_line(&mut authtoken).expect("Failed to read line");
-        //let authtoken: String = authtoken.trim().parse().expect("Invalid string!");
-
     }
     else if choice == 2 { 
-        println!("Enter CSV file location (not yet working, will exit program");
-        return Ok(());
+        let mut csvloc = String::new();
+        
+        println!("Enter CSV location/file name (e.g. <hosts.csv> (if in current dir):");
+        io::stdin().read_line(&mut csvloc).expect("Failed to read line");
+        let csvloc: String = csvloc.trim().parse().expect("Invalid string!");
+
+        let mut rdr = Reader::from_path(csvloc)?;
+        let mut rows: Vec<Host> = Vec::new();
+        for result in rdr.records() {
+            let record = result?;
+            println!("{:?}", record);
+            //Build struct, then send to JSON in this loop?  Will need to re-arrange functions
+            let host: Host = record.deserialize(None)?;
+            println!("{}", host.ip);
+        }
+        println!("{:?}", rows);
     }
     else if choice == 3 {
         return Ok(());
@@ -219,7 +235,9 @@ async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
     //If you receive JSON result back, connection appears to be successful.  Error should be passed otherwise on connection failure.
     println!("{:#?}", content);
 
+fn delete_host(){
 
+}
 
 Ok(())
 
