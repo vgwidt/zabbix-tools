@@ -100,8 +100,7 @@ let conn_string = Connection {
 };
 }*/
 
-#[tokio::main]
-async fn api_test(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
+fn api_test(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
 
     //JSON Request Object
     let request = json!({
@@ -115,23 +114,27 @@ async fn api_test(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
         "auth": null
     });
 
-    let client = reqwest::Client::new();
-
-    let response = client.post(&conn.server)
-                         .json(&request)
-                         .send()
-                         .await?;
-
-    let content: serde_json::Value = response.json().await?;
-    
-    //If you receive JSON result back, connection appears to be successful.  Error should be passed otherwise on connection failure.
-    println!("{:#?}", content);
+    send_request(conn, request);
 
     Ok(())
 }
 
 #[tokio::main]
-async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
+async fn send_request(conn: Connection, req: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
+    
+    println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&req).unwrap());
+    let client = reqwest::Client::new();
+    let response = client.post(&conn.server)
+                         .json(&req)
+                         .send()
+                         .await?;
+
+    let content: serde_json::Value = response.json().await?;
+    println!("{:#?}", content);
+    Ok(())
+}
+
+fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut choice: String = String::new();
     let mut ipaddress: String = String::new();
@@ -171,7 +174,7 @@ async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
         for result in rdr.records() {
             let record = result?;
             println!("{:?}", record);
-            //Build struct, then send to JSON in this loop?  Will need to re-arrange functions
+            //Build struct, then send to JSON in this loop?
             let host: Host = record.deserialize(None)?;
             println!("{}", host.ip);
         }
@@ -221,24 +224,8 @@ async fn add_hosts(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
         "id": 1
     });
 
-    println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&request).unwrap());
-
-    let client = reqwest::Client::new();
-
-    let response = client.post(&conn.server)
-                         .json(&request)
-                         .send()
-                         .await?;
-
-    let content: serde_json::Value = response.json().await?;
+   send_request(conn, request);
     
     //If you receive JSON result back, connection appears to be successful.  Error should be passed otherwise on connection failure.
-    println!("{:#?}", content);
-
-fn delete_host(){
-
-}
-
-Ok(())
-
+  Ok(())
 }
