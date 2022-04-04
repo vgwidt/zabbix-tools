@@ -15,7 +15,9 @@ Executable will be located in /target/debug/.
 
 Copy the config.json file from /cfg/ into the the folder from which you run the executable.  Modify with your server connection details.  API token is not required for testing API.
 
-For .csv import, copy the hosts.csv template from /cfg/ into your root folder and modify and add hosts as needed.  The current template must be used as is, adding only rows; adding extra columns will result in an error.
+For .csv import, copy the hosts.csv template from /cfg/ into your root folder and modify and add hosts as needed.  The current template must be used as is.  Adding extra columns will result in an error.
+
+You can post your own JSON request by copying /cfg/request.json to the root directory and entering a valid request.  Be sure to update the auth key.
 
 Note:
 Syntax and requirements for Zabbix API seem to change with each version so this may not work for versions other than 6.0  See the Zabbix manual for details: https://www.zabbix.com/documentation/6.0/en/manual/api.
