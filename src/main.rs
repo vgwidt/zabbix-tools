@@ -34,7 +34,7 @@ fn main(){
     //check if contents are OK, otherwise prompt (get_server)
 
     let cloned_string = conn_string.clone();
-        api_test(&conn_string).map_err(|err| println!("{:?}", err)).ok();
+    //api_test(&conn_string).map_err(|err| println!("{:?}", err)).ok();
 
 loop {
      let mut choice: String = String::new();
@@ -122,7 +122,7 @@ fn api_test(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
 #[tokio::main]
 async fn send_request(conn: &Connection, req: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
     
-    println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&req).unwrap());
+    //println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&req).unwrap());
     let client = reqwest::Client::new();
     let response = client.post(&conn.server)
                          .json(&req)
@@ -256,7 +256,7 @@ fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
                 "id": 1
             });
 
-            println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&request).unwrap());
+            //println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&request).unwrap());
             send_request(&conn, request);
         }
 
