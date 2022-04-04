@@ -2,7 +2,7 @@
 
 A CLI tool for interacting with Zabbix API built in Rust.  Designed for Zabbix 6.0.
 
-Functions added to test API and add hosts manually or via .csv file.
+Functions added to test API and add hosts manually or via .csv file.  Assumes SNMPv2 and a number of other host settings.  See /cfg/hosts.csv for the fields that can be adjusted.
 
 ## Instructions
 
@@ -21,6 +21,8 @@ Note:
 Syntax and requirements for Zabbix API seem to change with each version so this may not work for versions other than 6.0  See the Zabbix manual for details: https://www.zabbix.com/documentation/6.0/en/manual/api.
 
 ## To-do
+
+Allow for other host settings to be changed such as interface type.
 
 Convert static JSON value text to struct - both work with serde_json but struct will look cleaner and be less error prone.
 

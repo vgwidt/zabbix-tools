@@ -42,7 +42,8 @@ loop {
         println!("Select option:");
         println!("1: Add Hosts");
         println!("2: Test API");
-        println!("3: Exit");
+        println!("3: Send custom JSON request (from /request.json)");
+        println!("4: Exit");
         io::stdin().read_line(&mut choice).expect("Please enter a valid option");
         let choice: i32 = choice.trim().parse().expect("Please type a number!");
         
@@ -54,7 +55,11 @@ loop {
             api_test(&conn_string).map_err(|err| println!("{:?}", err)).ok();
             continue;
         }
-        else if choice == 3 {
+        else if choice == 3 { 
+            custom_request(&conn_string).map_err(|err| println!("{:?}", err)).ok();
+            continue;
+        }
+        else if choice == 4 {
             break;
         }
         else {
@@ -98,6 +103,17 @@ let conn_string = Connection {
 };
 
 return conn_string;
+}
+
+fn custom_request(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+
+
+    let file = fs::File::open("request.json").expect("file should open read only");
+    let request: serde_json::Value = serde_json::from_reader(file).expect("file should be proper JSON");
+
+    //let request: serde_json::Value =serde_json::from_str().expect("JSON was not well-formatted");
+    send_request(&conn, request);
+    Ok(())
 }
 
 fn api_test(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
