@@ -30,7 +30,7 @@ fn main(){
     let mut buff = String::new();
     file.read_to_string(&mut buff).unwrap();
  
-    let mut conn_string: Connection = serde_json::from_str(&buff).unwrap();
+    let conn_string: Connection = serde_json::from_str(&buff).unwrap();
     //check if contents are OK, otherwise prompt (get_server)
 
     let cloned_string = conn_string.clone();
@@ -45,8 +45,14 @@ loop {
         println!("3: Send custom JSON request (from /request.json)");
         println!("4: Exit");
         io::stdin().read_line(&mut choice).expect("Please enter a valid option");
-        let choice: i32 = choice.trim().parse().expect("Please type a number!");
-        
+        //let choice: i32 = choice.trim().parse().expect("Please type a number!");
+        let choice: u8 = match choice.trim().parse() {
+            Ok(num) => num,
+            Err(_) => {
+                println!("Please type a number!");
+                continue
+            }
+       };
         if choice == 1 {
             add_hosts(&conn_string).map_err(|err| println!("{:?}", err)).ok();
             continue;
@@ -70,7 +76,14 @@ loop {
     println!("Goodbye");
 }
 
-fn get_server() -> Connection {
+fn get_user_input(prompt: &str) -> String {
+    let mut input = String::new();
+    println!("{}", prompt);
+    io::stdin().read_line(&mut input).expect("Please enter a valid option");
+    input
+}
+
+fn _get_server() -> Connection {
 
     let mut zbxsrv = String::new();
     let mut user = String::new();
@@ -81,7 +94,6 @@ fn get_server() -> Connection {
     io::stdin().read_line(&mut zbxsrv).expect("Failed to read line");
     let zbxsrv: String = zbxsrv.trim().parse().expect("Invalid string!");
     let zbxsrv = format!("http://{}/api_jsonrpc.php", zbxsrv);
-
 
     println!("Enter Username:");
     io::stdin().read_line(&mut user).expect("Failed to read line");
@@ -112,9 +124,11 @@ fn custom_request(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     let request: serde_json::Value = serde_json::from_reader(file).expect("file should be proper JSON");
 
     //let request: serde_json::Value =serde_json::from_str().expect("JSON was not well-formatted");
-    send_request(&conn, request);
+    send_request(&conn, request).expect("Unable to send request");
     Ok(())
 }
+
+
 
 fn api_test(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
 
@@ -130,7 +144,7 @@ fn api_test(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
         "auth": null
     });
 
-    send_request(&conn, request);
+    send_request(&conn, request).expect("Unable to send request");
 
     Ok(())
 }
@@ -153,11 +167,12 @@ async fn send_request(conn: &Connection, req: serde_json::Value) -> Result<(), B
 fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut choice: String = String::new();
-    let mut ipaddress: String = String::new();
     let mut hostname: String = String::new();
+    let mut visiblename: String = String::new();
+    let mut ipaddress: String = String::new();
     let mut groupid: String = String::new();
     let mut templateid: String = String::new();
-    let mut snmpstring: String = String::new();
+    //let mut snmpstring: String = String::new();
 
     println!("(Add Hosts) Select option:");
     println!("1: Add Manually");
@@ -167,28 +182,37 @@ fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     let choice: i32 = choice.trim().parse().expect("Please type a number!");
 
     if choice == 1 {
+        //println!("Enter Host Name:");
+        //io::stdin().read_line(&mut hostname).expect("Failed to read line");
+        //let hostname: String = hostname.trim().parse().expect("Invalid string!");
+        let hostname:String = get_user_input("Enter Host Name:").trim().parse().expect("Invalid string!");
+
+        println!("Enter Visible Name:");
+        io::stdin().read_line(&mut visiblename).expect("Failed to read line");
+        let hostname: String = hostname.trim().parse().expect("Invalid string!");
+
         println!("Enter IP Address:");
         io::stdin().read_line(&mut ipaddress).expect("Failed to read line");
         let ipaddress: String = ipaddress.trim().parse().expect("Invalid string!");
-
-        println!("Enter Host Name:");
-        io::stdin().read_line(&mut hostname).expect("Failed to read line");
-        let hostname: String = hostname.trim().parse().expect("Invalid string!");
 
         println!("Enter Group ID:");
         io::stdin().read_line(&mut groupid).expect("Failed to read line");
         let groupid: String = groupid.trim().parse().expect("Invalid string!");
 
+        println!("Enter Template ID:");
+        io::stdin().read_line(&mut templateid).expect("Failed to read line");
+        let templateid: String = groupid.trim().parse().expect("Invalid string!");
+
         let request: serde_json::Value = json!({
             "jsonrpc": "2.0",
             "method": "host.create",
             "params": {
-                "host": hostname.trim(),
-                "name": hostname.trim(),
+                "host": hostname,
+                "name": visiblename,
                 "interfaces": [
                     {
                         "type": 2,
-                        "ip": ipaddress.trim(),
+                        "ip": ipaddress,
                         "dns": "",
                         "useip": 1,
                         "main": 1,
@@ -207,7 +231,7 @@ fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
                 ],
                 "templates": [
                     {
-                        "templateid": "10607"
+                        "templateid": templateid
                     }
                 ],
                 "inventory_mode": 0
@@ -216,7 +240,7 @@ fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
             "id": 1
         });
     
-       send_request(conn, request);
+       send_request(conn, request).expect("Unable to send request");
 
     }
     else if choice == 2 { 
@@ -227,7 +251,7 @@ fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
         let csvloc: String = csvloc.trim().parse().expect("Invalid string!");
 
         let mut rdr = Reader::from_path(csvloc)?;
-        let mut rows: Vec<Host> = Vec::new();
+        //let mut rows: Vec<Host> = Vec::new();
         for result in rdr.records() {
             let record = result?;
             println!("{:?}", record);
@@ -273,7 +297,7 @@ fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
             });
 
             //println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&request).unwrap());
-            send_request(&conn, request);
+            send_request(&conn, request).expect("Unable to send request");
         }
 
     }
