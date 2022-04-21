@@ -1,3 +1,6 @@
+mod json;
+
+use json::*;
 use serde_json::json;
 use serde::Deserialize;
 use ::std::*;
@@ -5,6 +8,7 @@ use std::io::Read;
 use std::fs::File;
 extern crate csv;
 use csv::Reader;
+
 
 #[derive(Debug, Clone, Deserialize)]
  struct Connection {
@@ -23,13 +27,13 @@ use csv::Reader;
     snmp: String
 }
 
+
 fn main(){
 
     //Try to load config
     let mut file = File::open("config.json").unwrap();
     let mut buff = String::new();
     file.read_to_string(&mut buff).unwrap();
- 
     let conn_string: Connection = serde_json::from_str(&buff).unwrap();
     //check if contents are OK, otherwise prompt (get_server)
 
@@ -119,7 +123,6 @@ return conn_string;
 
 fn custom_request(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
 
-
     let file = fs::File::open("request.json").expect("file should open read only");
     let request: serde_json::Value = serde_json::from_reader(file).expect("file should be proper JSON");
 
@@ -128,21 +131,17 @@ fn custom_request(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
-
 fn api_test(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
 
-    //JSON Request Object
-    let request = json!({
-        "jsonrpc": "2.0",
-        "method": "user.login",
-        "params": {
-            "user": conn.username,
-            "password": conn.password
-        },
-        "id": 1,
-        "auth": null
-    });
+    let json = JsonRoot {
+        jsonrpc: JSONRPC.to_string(),
+        method: "user.login".to_string(),
+        params: JsonParams::new(conn.username.clone(), conn.password.clone()),
+        id: 1,
+        auth: json!(null)
+    };
+    //Convert struct to JSON Value
+    let request = serde_json::to_value(&json).unwrap(); 
 
     send_request(&conn, request).expect("Unable to send request");
 
@@ -151,7 +150,7 @@ fn api_test(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::main]
 async fn send_request(conn: &Connection, req: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
-    
+
     //println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&req).unwrap());
     let client = reqwest::Client::new();
     let response = client.post(&conn.server)
