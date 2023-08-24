@@ -4,6 +4,8 @@ A CLI tool for interacting with Zabbix API built in Rust.  Designed for Zabbix 6
 
 Functions added to test API and add hosts manually or via .csv file.  Assumes SNMPv2 and a number of other host settings.  See /cfg/hosts.csv for the fields that can be adjusted.
 
+There are issues using Authorization bearer (https://support.zabbix.com/browse/ZBX-22952) so this may not work right now.  Library should be switched to offer both credentials and auth key in cases where the authorization header doesn't work.
+
 ## Instructions
 
 Build using cargo from project root directory:

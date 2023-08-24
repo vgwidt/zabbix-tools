@@ -4,7 +4,7 @@ use std::fs::File;
 use std::path::Path;
 extern crate csv;
 use csv::Reader;
-use zabbix_api::api::ZabbixApi;
+use zabbix_api::api::{ZabbixApi, Method, Query};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -53,6 +53,7 @@ loop {
         println!("2: Test API");
         println!("3: Send custom JSON request");
         println!("4: Exit");
+        println!("5: Find and replace host names (EXPERIMENTAL)");
         io::stdin().read_line(&mut choice).expect("Please enter a valid option");
         //let choice: i32 = choice.trim().parse().expect("Please type a number!");
         let choice: u8 = match choice.trim().parse() {
@@ -76,6 +77,10 @@ loop {
         }
         else if choice == 4 {
             break;
+        }
+        else if choice == 5 {
+            hostname_find_and_replace(&connection).await.map_err(|err| println!("{:?}", err)).ok();
+            continue;
         }
         else {
             println!("Please select a valid option");
@@ -123,7 +128,7 @@ async fn custom_request(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Erro
     match serde_json::from_str(&params_input) {
         Ok(v) => 
         {
-            let result = conn.request(&method, v).await?;
+            let result = conn.custom_request(&method, v).await?;
             println!("{:?}", result);
 
         }
@@ -139,7 +144,7 @@ async fn custom_request(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Erro
 
 async fn api_test(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
 
-    let method = "apiinfo.version";
+    let method = Method::APIInfoVersion;
     let params = json!({});
 
     let result = conn.request(method, params).await?;
@@ -188,7 +193,7 @@ async fn add_hosts(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
         io::stdin().read_line(&mut templateid).expect("Failed to read line");
         let templateid: String = groupid.trim().parse().expect("Invalid string!");
 
-        let method = "host.create";
+        let method = Method::HostCreate;
         let params = json!({
             "host": hostname,
             "name": visiblename,
@@ -241,7 +246,7 @@ async fn add_hosts(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
             let host: Host = record.deserialize(None)?;
             println!("{}", host.ip);
 
-            let method = "host.create";
+            let method = Method::HostCreate;
             let params = json!({
                 "host": host.ip.trim(),
                     "name": host.hostname.trim(),
@@ -288,4 +293,44 @@ async fn add_hosts(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
     }
 
   Ok(())
+}
+
+async fn hostname_find_and_replace(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
+    //Ask user for input string for host name search
+    let mut find: String = String::new();
+    println!("Enter host name find string:");
+    io::stdin().read_line(&mut find).expect("Failed to read line");
+    let find: String = find.trim().parse().expect("Invalid string!");
+
+    //Ask user for input string for host name replacement (to)
+    let mut replace: String = String::new();
+    println!("Enter host name replace string:");
+    io::stdin().read_line(&mut replace).expect("Failed to read line");
+    let replace: String = replace.trim().parse().expect("Invalid string!");
+
+    let query = Query::new("host.get").add_search("name", &find).set_output(vec!["hostid", "name"]);
+    let result = conn.request_query(query).await?;
+    println!("Result: {:?}", result);
+    
+    let result = result.result;
+    let pairs = result.as_array().unwrap();
+
+    for host in pairs {
+        let hostid = host["hostid"].as_str().unwrap();
+        let hostname = host["name"].as_str().unwrap();
+        let hostname = hostname.replace(&find, &replace);
+        let method = Method::HostUpdate;
+        let params = json!({
+            "hostid": hostid,
+            "name": hostname
+        });
+        println!("{:?}", params);
+        //let result = conn.request(method, params).await?;
+        //println!("{:?}", result);
+    }
+
+    println!("{:?}", result);
+
+    Ok(())
+
 }
