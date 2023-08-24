@@ -1,22 +1,13 @@
-mod json;
-
-use json::*;
-use serde_json::json;
-use serde::Deserialize;
 use ::std::*;
 use std::io::Read;
 use std::fs::File;
+use std::path::Path;
 extern crate csv;
 use csv::Reader;
+use zabbix_api::api::ZabbixApi;
+use serde::Deserialize;
+use serde_json::json;
 
-
-#[derive(Debug, Clone, Deserialize)]
- struct Connection {
-        server: String,
-        username: String,
-        password: String,
-        token: String
- }
 
  #[derive(Debug, Deserialize, Clone)]
  struct Host {
@@ -28,25 +19,39 @@ use csv::Reader;
 }
 
 
-fn main(){
+#[tokio::main]
+async fn main(){
 
-    //Try to load config
-    let mut file = File::open("config.json").unwrap();
-    let mut buff = String::new();
-    file.read_to_string(&mut buff).unwrap();
-    let conn_string: Connection = serde_json::from_str(&buff).unwrap();
-    //check if contents are OK, otherwise prompt (get_server)
+    let config_path = Path::new("config.json");
 
-    let cloned_string = conn_string.clone();
-    //api_test(&conn_string).map_err(|err| println!("{:?}", err)).ok();
+    let connection: ZabbixApi = match File::open(&config_path) {
+        Ok(mut file) => {
+            let mut buff = String::new();
+            if file.read_to_string(&mut buff).is_err() {
+                println!("Failed to read config file");
+                get_connection_info()
+            } else {
+                match serde_json::from_str(&buff) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        println!("Failed to parse config file: {}", e);
+                        get_connection_info()
+                    }
+                }
+            }
+        }
+        Err(_) => {
+            println!("Config file not found");
+            get_connection_info()
+        }
+    };    
 
 loop {
      let mut choice: String = String::new();
-        let conn_string = cloned_string.clone();
         println!("Select option:");
         println!("1: Add Hosts");
         println!("2: Test API");
-        println!("3: Send custom JSON request (from /request.json)");
+        println!("3: Send custom JSON request");
         println!("4: Exit");
         io::stdin().read_line(&mut choice).expect("Please enter a valid option");
         //let choice: i32 = choice.trim().parse().expect("Please type a number!");
@@ -58,15 +63,15 @@ loop {
             }
        };
         if choice == 1 {
-            add_hosts(&conn_string).map_err(|err| println!("{:?}", err)).ok();
+            add_hosts(&connection).await.map_err(|err| println!("{:?}", err)).ok();
             continue;
         }
         else if choice == 2 { 
-            api_test(&conn_string).map_err(|err| println!("{:?}", err)).ok();
+            api_test(&connection).await.map_err(|err| println!("{:?}", err)).ok();
             continue;
         }
         else if choice == 3 { 
-            custom_request(&conn_string).map_err(|err| println!("{:?}", err)).ok();
+            custom_request(&connection).await.map_err(|err| println!("{:?}", err)).ok();
             continue;
         }
         else if choice == 4 {
@@ -87,86 +92,67 @@ fn get_user_input(prompt: &str) -> String {
     input
 }
 
-fn _get_server() -> Connection {
+fn get_connection_info() -> ZabbixApi {
 
-    let mut zbxsrv = String::new();
-    let mut user = String::new();
-    let mut pass = String::new();
-    let mut authtoken = String::new();
+    let mut server = String::new();
+    let mut api_key = String::new();
 
-    println!("Enter Zabbix Host IP/Name (Include virtual directory if it exists, e.g. 127.0.0.1/zabbix):");
-    io::stdin().read_line(&mut zbxsrv).expect("Failed to read line");
-    let zbxsrv: String = zbxsrv.trim().parse().expect("Invalid string!");
-    let zbxsrv = format!("http://{}/api_jsonrpc.php", zbxsrv);
 
-    println!("Enter Username:");
-    io::stdin().read_line(&mut user).expect("Failed to read line");
-    let user: String = user.trim().parse().expect("Invalid string!");
+    println!("Enter Zabbix API URL (e.g. http://127.0.0.1/zabbix/api_jsonrpc.php)):");
+    io::stdin().read_line(&mut server).expect("Failed to read line");
+    let server: String = server.trim().parse().expect("Invalid string!");
 
-    println!("Enter Password:");
-    io::stdin().read_line(&mut pass).expect("Failed to read line");
-    let pass: String = pass.trim().parse().expect("Invalid string!");
+    println!("Enter API key:");
+    io::stdin().read_line(&mut api_key).expect("Failed to read line");
+    let api_key: String = api_key.trim().parse().expect("Invalid string!");
 
-    println!("Enter Auth Token:");
-    io::stdin().read_line(&mut authtoken).expect("Failed to read line");
-    let authtoken: String = authtoken.trim().parse().expect("Invalid string!");
+    ZabbixApi::new(&server, &api_key)
 
-let conn_string = Connection {
-    server: zbxsrv,
-    username: user,
-    password: pass,
-    token: authtoken
-};
-
-return conn_string;
 }
 
-fn custom_request(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+async fn custom_request(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
 
-    let file = fs::File::open("request.json").expect("file should open read only");
-    let request: serde_json::Value = serde_json::from_reader(file).expect("file should be proper JSON");
+    let mut method: String = String::new();
+    println!("Enter method (e.g. host.get):");
+    io::stdin().read_line(&mut method).expect("Failed to read line");
+    let method: String = method.trim().parse().expect("Invalid string!");
 
-    //let request: serde_json::Value =serde_json::from_str().expect("JSON was not well-formatted");
-    send_request(&conn, request).expect("Unable to send request");
-    Ok(())
-}
+    let mut params_input: String = String::new();
+    println!("Enter params (JSON, one line):");
+    io::stdin().read_line(&mut params_input).expect("Failed to read line");
+    match serde_json::from_str(&params_input) {
+        Ok(v) => 
+        {
+            let result = conn.request(&method, v).await?;
+            println!("{:?}", result);
 
-fn api_test(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+        }
+        Err(e) => {
+            println!("Error: {}", e);
+    }
+    }
 
-    let json = JsonRoot {
-        jsonrpc: JSONRPC.to_string(),
-        method: "user.login".to_string(),
-        params: JsonParams::new(conn.username.clone(), conn.password.clone()),
-        id: 1,
-        auth: json!(null)
-    };
-    //Convert struct to JSON Value
-    let request = serde_json::to_value(&json).unwrap(); 
 
-    send_request(&conn, request).expect("Unable to send request");
 
     Ok(())
 }
 
-#[tokio::main]
-async fn send_request(conn: &Connection, req: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
+async fn api_test(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
 
-    //println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&req).unwrap());
-    let client = reqwest::Client::new();
-    let response = client.post(&conn.server)
-                         .json(&req)
-                         .send()
-                         .await?;
+    let method = "apiinfo.version";
+    let params = json!({});
 
-    let content: serde_json::Value = response.json().await?;
-    println!("{:#?}", content);
+    let result = conn.request(method, params).await?;
+
+    println!("{:?}", result);
+
     Ok(())
 }
 
-fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+
+async fn add_hosts(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut choice: String = String::new();
-    let mut hostname: String = String::new();
     let mut visiblename: String = String::new();
     let mut ipaddress: String = String::new();
     let mut groupid: String = String::new();
@@ -202,44 +188,41 @@ fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
         io::stdin().read_line(&mut templateid).expect("Failed to read line");
         let templateid: String = groupid.trim().parse().expect("Invalid string!");
 
-        let request: serde_json::Value = json!({
-            "jsonrpc": "2.0",
-            "method": "host.create",
-            "params": {
-                "host": hostname,
-                "name": visiblename,
-                "interfaces": [
-                    {
-                        "type": 2,
-                        "ip": ipaddress,
-                        "dns": "",
-                        "useip": 1,
-                        "main": 1,
-                        "port": "161",
-                        "details": {
-                            "version": 2,
-                            "community": "{$SNMP_COMMUNITY}",
-                        },
-                    "interface_ref": "if1"
-                    }
-                ],
-                "groups": [
-                    {
-                        "groupid": groupid.trim()
-                    }
-                ],
-                "templates": [
-                    {
-                        "templateid": templateid
-                    }
-                ],
-                "inventory_mode": 0
-            },
-            "auth": conn.token,
-            "id": 1
+        let method = "host.create";
+        let params = json!({
+            "host": hostname,
+            "name": visiblename,
+            "interfaces": [
+                {
+                    "type": 2,
+                    "ip": ipaddress,
+                    "dns": "",
+                    "useip": 1,
+                    "main": 1,
+                    "port": "161",
+                    "details": {
+                        "version": 2,
+                        "community": "{$SNMP_COMMUNITY}",
+                    },
+                "interface_ref": "if1"
+                }
+            ],
+            "groups": [
+                {
+                    "groupid": groupid.trim()
+                }
+            ],
+            "templates": [
+                {
+                    "templateid": templateid
+                }
+            ],
+            "inventory_mode": 0
         });
     
-       send_request(conn, request).expect("Unable to send request");
+       let result = conn.request(method, params).await?;
+
+       println!("{:?}", result);
 
     }
     else if choice == 2 { 
@@ -258,11 +241,9 @@ fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
             let host: Host = record.deserialize(None)?;
             println!("{}", host.ip);
 
-            let request: serde_json::Value = json!({
-                "jsonrpc": "2.0",
-                "method": "host.create",
-                "params": {
-                    "host": host.ip.trim(),
+            let method = "host.create";
+            let params = json!({
+                "host": host.ip.trim(),
                     "name": host.hostname.trim(),
                     "interfaces": [
                         {
@@ -290,13 +271,12 @@ fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
                         }
                     ],
                     "inventory_mode": 0
-                },
-                "auth": conn.token,
-                "id": 1
             });
 
-            //println!("Your request looks like:\n{}\n", serde_json::to_string_pretty(&request).unwrap());
-            send_request(&conn, request).expect("Unable to send request");
+            let result = conn.request(method, params).await?;
+
+            println!("{:?}", result);
+            
         }
 
     }
@@ -306,7 +286,6 @@ fn add_hosts(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     else {
         println!("Please select a valid option");
     }
-        
-    //If you receive JSON result back, connection appears to be successful.  Error should be passed otherwise on connection failure.
+
   Ok(())
 }

@@ -2,3 +2,5 @@
 /config.json
 /hosts.csv
 /request.json
+/.vscode
+target

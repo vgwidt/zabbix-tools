@@ -6,9 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.11.10", features = ["json"] }
-tokio = { version = "1.17.0", features = ["full"] }
-serde = { version = "1.0.136", features = ["derive"] }
-serde_json = "1.0.79"
-serde_with = "1.12.1"
-csv = "1.1.6"
+tokio = { version = "1.32", features = ["full"] }
+csv = "1.2.2"
+zabbix_api = { path = "./crates/zabbix_api"}
+serde_json = "1.0.105"
+serde = { version = "1.0.185", features = ["derive"] }

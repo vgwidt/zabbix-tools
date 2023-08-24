@@ -1,6 +1,4 @@
 {
-    "server": "http://127.0.0.1/zabbix/api_jsonrpc.php",
-    "username": "username",
-    "password": "password",
-    "token": ""
+    "base_url": "http://127.0.0.1/zabbix/api_jsonrpc.php",
+    "auth_token": ""
 }
