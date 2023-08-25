@@ -1,8 +1,15 @@
 # zabbix-tools
 
-A CLI tool for interacting with Zabbix API built in Rust.  Designed for Zabbix 6.
+A CLI tool for interacting with Zabbix API built in Rust.  Designed for Zabbix 6. 
 
-Functions added to test API and add hosts manually or via .csv file.  Assumes SNMPv2 and a number of other host settings.  See /cfg/hosts.csv for the fields that can be adjusted.
+This was quickly written up for a couple of mass host update features, there is not much for error checking.
+
+Features:
+* Bulk Add Hosts via CSV
+* Bulk update host names
+* Send custom JSON requests
+
+Adding hosts can be done manually or via .csv file.  Assumes SNMPv2 and a number of other host settings.  See /cfg/hosts.csv for the fields that can be adjusted.
 
 An API token is required for requests that require authentication.
 
