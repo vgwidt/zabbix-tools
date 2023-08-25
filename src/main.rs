@@ -6,7 +6,7 @@ extern crate csv;
 use csv::Reader;
 use zabbix_api::api::{ZabbixApi, Method, Query};
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{json, Value};
 
 
  #[derive(Debug, Deserialize, Clone)]
@@ -125,10 +125,22 @@ async fn custom_request(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Erro
     let mut params_input: String = String::new();
     println!("Enter params (JSON, one line):");
     io::stdin().read_line(&mut params_input).expect("Failed to read line");
+
+    let mut requires_auth: String = String::new();
+    println!("Requires auth? (y/n):");
+    io::stdin().read_line(&mut requires_auth).expect("Failed to read line");
+    let requires_auth: String = requires_auth.trim().parse().expect("Invalid string!");
+
+    let requires_auth: bool = match requires_auth.as_str() {
+        "y" => true,
+        "n" => false,
+        _ => false
+    };
+
     match serde_json::from_str(&params_input) {
         Ok(v) => 
         {
-            let result = conn.custom_request(&method, v).await?;
+            let result = conn.custom_request(&method, v, requires_auth).await?;
             println!("{:?}", result);
 
         }
@@ -144,10 +156,9 @@ async fn custom_request(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Erro
 
 async fn api_test(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
 
-    let method = Method::APIInfoVersion;
-    let params = json!({});
+    let query = Query::new(Method::APIInfoVersion);
 
-    let result = conn.request(method, params).await?;
+    let result = conn.request_query(query).await?;
 
     println!("{:?}", result);
 
@@ -193,7 +204,7 @@ async fn add_hosts(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
         io::stdin().read_line(&mut templateid).expect("Failed to read line");
         let templateid: String = groupid.trim().parse().expect("Invalid string!");
 
-        let method = Method::HostCreate;
+        let mut query = Query::new(Method::HostCreate);
         let params = json!({
             "host": hostname,
             "name": visiblename,
@@ -224,8 +235,10 @@ async fn add_hosts(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
             ],
             "inventory_mode": 0
         });
+
+        query.params = params;
     
-       let result = conn.request(method, params).await?;
+       let result = conn.request_query(query).await?;
 
        println!("{:?}", result);
 
@@ -246,8 +259,8 @@ async fn add_hosts(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
             let host: Host = record.deserialize(None)?;
             println!("{}", host.ip);
 
-            let method = Method::HostCreate;
-            let params = json!({
+            let mut query = Query::new(Method::HostCreate);
+            query.params = json!({
                 "host": host.ip.trim(),
                     "name": host.hostname.trim(),
                     "interfaces": [
@@ -278,7 +291,8 @@ async fn add_hosts(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
                     "inventory_mode": 0
             });
 
-            let result = conn.request(method, params).await?;
+
+            let result = conn.request_query(query).await?;
 
             println!("{:?}", result);
             
@@ -298,7 +312,7 @@ async fn add_hosts(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
 async fn hostname_find_and_replace(conn: &ZabbixApi) -> Result<(), Box<dyn std::error::Error>> {
     //Ask user for input string for host name search
     let mut find: String = String::new();
-    println!("Enter host name find string:");
+    println!("Enter host name find string (case-sensitive):");
     io::stdin().read_line(&mut find).expect("Failed to read line");
     let find: String = find.trim().parse().expect("Invalid string!");
 
@@ -308,28 +322,60 @@ async fn hostname_find_and_replace(conn: &ZabbixApi) -> Result<(), Box<dyn std::
     io::stdin().read_line(&mut replace).expect("Failed to read line");
     let replace: String = replace.trim().parse().expect("Invalid string!");
 
-    let query = Query::new("host.get").add_search("name", &find).set_output(vec!["hostid", "name"]);
+    let query = Query::new(Method::HostGet).add_search("name", &find).set_output(vec!["hostid", "name"]);
     let result = conn.request_query(query).await?;
     println!("Result: {:?}", result);
     
     let result = result.result;
     let pairs = result.as_array().unwrap();
 
+    let mut params_list: Vec<Value> = Vec::new();
+
     for host in pairs {
-        let hostid = host["hostid"].as_str().unwrap();
+        //Zabbix search is case insensitive, so only pick out hosts where case matches
         let hostname = host["name"].as_str().unwrap();
-        let hostname = hostname.replace(&find, &replace);
-        let method = Method::HostUpdate;
-        let params = json!({
-            "hostid": hostid,
-            "name": hostname
-        });
-        println!("{:?}", params);
-        //let result = conn.request(method, params).await?;
-        //println!("{:?}", result);
+        if hostname.contains(&find) {
+            let hostid = host["hostid"].as_str().unwrap();
+            let hostname = host["name"].as_str().unwrap();
+            let hostname = hostname.replace(&find, &replace);
+            //let method = Method::HostUpdate;
+            let params = json!({
+                "hostid": hostid,
+                "name": hostname
+            });
+            params_list.push(params);
+            //println!("{:?}", params);
+            //let result = conn.request(method, params).await?;
+            //println!("{:?}", result);
+        }
     }
 
-    println!("{:?}", result);
+    //If params is not empty, show the user the list of hosts that will change and ask for confirmation
+    if !params_list.is_empty() {
+        println!("The following hosts will be changed:");
+        for host in &params_list {
+            println!("{}", host["name"]);
+        }
+        let mut confirm: String = String::new();
+        println!("Are you sure you want to continue? (y/n):");
+        io::stdin().read_line(&mut confirm).expect("Failed to read line");
+        let confirm: String = confirm.trim().parse().expect("Invalid string!");
+        if confirm == "y" {
+            for item in &params_list {
+                let mut query = Query::new(Method::HostUpdate);
+                let params = item.clone();
+                query.params = params;
+                let result = conn.request_query(query).await?;
+                println!("{:?}", result);
+            }
+        }
+        else {
+            println!("Host names will not be changed");
+        }
+    }
+    else {
+        println!("No hosts found");
+    }
 
     Ok(())
 

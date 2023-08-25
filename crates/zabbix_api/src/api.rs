@@ -1,4 +1,4 @@
-use reqwest::{Client, Error};
+use reqwest::{Client, Error, header};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -16,14 +16,14 @@ pub struct Request {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Query {
-    query: String,
-    params: Value,
+    pub query: Method,
+    pub params: Value,
 }
 
 impl Query {
-    pub fn new(query: &str) -> Query {
+    pub fn new(query: Method) -> Self {
         Query {
-            query: query.to_string(),
+            query: query,
             params: json!({}),
         }
     }
@@ -52,7 +52,7 @@ pub enum Method {
     HostCreate,
     HostGet,
     HostUpdate,
-    APIInfoVersion
+    APIInfoVersion,
 }
 
 impl Method {
@@ -62,6 +62,17 @@ impl Method {
             Method::HostGet => "host.get".to_string(),
             Method::HostUpdate => "host.update".to_string(),
             Method::APIInfoVersion => "apiinfo.version".to_string(),
+        }
+    }
+
+    // Set whether each method requires authentication or not
+    // Zabbix API does not allow methods that do not require authentication to be called with authentication when using a token
+    pub fn requires_auth(&self) -> bool {
+        match self {
+            Method::HostCreate => true,
+            Method::HostGet => true,
+            Method::HostUpdate => true,
+            Method::APIInfoVersion => false,
         }
     }
 }
@@ -82,47 +93,53 @@ impl ZabbixApi {
     }
 
     // Request method
-    pub async fn request(&self, method: Method, params: Value) -> Result<ZabbixResponse, Error> {
-        self.request_internal(method.to_string(), params).await
-    }
+    // pub async fn request(&self, method: Method, params: Value, ) -> Result<ZabbixResponse, Error> {
+    //     self.request_internal(method.to_string(), params, method.requires_auth()).await
+    // }
     
     // Custom request, for methods not implemented in the library
-    pub async fn custom_request(&self, method: &str, params: Value) -> Result<ZabbixResponse, Error> {
-        self.request_internal(method.to_string(), params).await
+    pub async fn custom_request(&self, method: &str, params: Value, require_auth: bool) -> Result<ZabbixResponse, Error> {
+        self.request_internal(method.to_string(), params, require_auth).await
     }
 
     // New request that takes Query object
     pub async fn request_query(&self, query: Query) -> Result<ZabbixResponse, Error> {
-        self.request_internal(query.query, query.params).await
+        self.request_internal(query.query.to_string(), query.params, query.query.requires_auth()).await
     }
     
     // Shared request internals
-    async fn request_internal(&self, method: String, params: Value) -> Result<ZabbixResponse, Error> {
+    async fn request_internal(&self, method: String, params: Value, require_auth: bool) -> Result<ZabbixResponse, Error> {
+
+        // Create the request object
         let request = Request {
             jsonrpc: JSONRPC.to_string(),
             method,
             params,
             id: 1,
         };
+        
+        let mut headers = header::HeaderMap::new();
+        headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/json-rpc"));
 
-        let json_request = serde_json::to_string(&request).unwrap();
-        println!("JSON Request: {}", json_request);
+        if require_auth {
+            headers.insert("Authorization", format!("Bearer {}", self.auth_token).parse().unwrap());
+        }
     
-        let client = Client::new();
+        let client = Client::builder()
+            .default_headers(headers)
+            .danger_accept_invalid_certs(true)
+            .http1_title_case_headers() // Zabbix API requires title case authorization header
+            .build()?;
     
         let response = client.post(&self.base_url)
-            .header("Content-Type", "application/json-rpc")
-            .header("accept", "application/json")
-            .header("Authorization", format!("Bearer {}", self.auth_token))
             .json(&request)
             .send()
             .await?;
-        
-        let json_response = response.json().await?;
+            
+            let json_response = response.json().await?;
     
-        //TODO: Need to handle errors from Zabbix
-        
         let zabbix_response: ZabbixResponse = serde_json::from_value(json_response).unwrap();
+
         Ok(zabbix_response)
     }
 
